@@ -1,0 +1,31 @@
+parameters:
+  elastic_host: '%env(json:ELASTICSEARCH_HOSTS)%'
+
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory:
+    class: AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory
+
+  AlexTanVer\ElasticBundle\SearchResponseDataExtractor:
+    class: AlexTanVer\ElasticBundle\SearchResponseDataExtractor
+
+  AlexTanVer\ElasticBundle\Service\IndexService:
+    class: AlexTanVer\ElasticBundle\Service\IndexService
+    arguments:
+      - '@AlexTanVer\ElasticBundle\ClientBuilder'
+
+  AlexTanVer\ElasticBundle\Manager\ElasticManager:
+    class: AlexTanVer\ElasticBundle\Manager\ElasticManager
+    arguments:
+      - '@AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory'
+      - '@AlexTanVer\ElasticBundle\CLientBuilder\ClientBuilder'
+      - '@AlexTanVer\ElasticBundle\SearchResponseDataExtractor'
+
+  AlexTanVer\ElasticBundle\ClientBuilder:
+    class: AlexTanVer\ElasticBundle\ClientBuilder
+    arguments:
+      - '%elastic_host%'
+      - '@logger'
