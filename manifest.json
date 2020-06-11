@@ -1,5 +1,8 @@
 {
+  "bundles": {
+    "AlexTanVer\\ElasticBundle\\ElasticBundle": ["all"]
+  },
   "env": {
-    "ELASTICSEARCH_HOSTS": "['127.0.0.1:9200']"
+    "TEST": "7777"
   }
 }
