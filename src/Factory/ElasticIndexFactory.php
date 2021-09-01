@@ -49,5 +49,7 @@ class ElasticIndexFactory
                 }
             }
         }
+
+        return null;
     }
 }
