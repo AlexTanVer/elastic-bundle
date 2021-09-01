@@ -21,7 +21,7 @@ services:
     class: AlexTanVer\ElasticBundle\Manager\ElasticManager
     arguments:
       - '@AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory'
-      - '@AlexTanVer\ElasticBundle\CLientBuilder\ClientBuilder'
+      - '@AlexTanVer\ElasticBundle\ClientBuilder\ClientBuilder'
       - '@AlexTanVer\ElasticBundle\SearchResponseDataExtractor'
 
   AlexTanVer\ElasticBundle\ClientBuilder:
