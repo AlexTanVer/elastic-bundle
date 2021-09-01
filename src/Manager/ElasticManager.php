@@ -2,7 +2,7 @@
 
 namespace AlexTanVer\ElasticBundle\Manager;
 
-use AlexTanVer\ElasticBundle\ClientBuilder\ClientBuilder;
+use AlexTanVer\ElasticBundle\ClientBuilder;
 use AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory;
 use AlexTanVer\ElasticBundle\Repository\AbstractRepository;
 use AlexTanVer\ElasticBundle\SearchResponseDataExtractor;
@@ -21,10 +21,12 @@ class ElasticManager
     /**
      * ElasticManager constructor.
      * @param ElasticIndexFactory $elasticIndexFactory
+     * @param \AlexTanVer\ElasticBundle\ClientBuilder $clientBuilder
+     * @param \AlexTanVer\ElasticBundle\SearchResponseDataExtractor $searchResponseDataExtractor
      */
     public function __construct(
-        ElasticIndexFactory $elasticIndexFactory,
-        ClientBuilder $clientBuilder,
+        ElasticIndexFactory         $elasticIndexFactory,
+        ClientBuilder               $clientBuilder,
         SearchResponseDataExtractor $searchResponseDataExtractor
     )
     {
@@ -36,12 +38,17 @@ class ElasticManager
     /**
      * @param string $indexClassName
      * @return AbstractRepository
+     * @throws \Exception
      */
     public function getRepository(string $indexClassName): AbstractRepository
     {
-        $index           = $this->elasticIndexFactory->getIndexByClassName($indexClassName);
-        $repositoryClass = $index->getRepository();
-        return new $repositoryClass($this->getClient(), $this->getDataExtractor());
+        $index = $this->elasticIndexFactory->getIndexByClassName($indexClassName);
+        if ($index) {
+            $repositoryClass = $index->getRepository();
+            return new $repositoryClass($this->getClient(), $this->getDataExtractor());
+        }
+
+        throw new \Exception("Index with class name '{$indexClassName}' not found");
     }
 
     /**
