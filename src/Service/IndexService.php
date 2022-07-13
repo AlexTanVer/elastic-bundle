@@ -2,15 +2,21 @@
 
 namespace AlexTanVer\ElasticBundle\Service;
 
-use AlexTanVer\ElasticBundle\ClientBuilder;
+
+use AlexTanVer\ElasticBundle\ClientBuilder\ClientBuilder;
+use DateTimeImmutable;
+use Elastic\Elasticsearch\Client;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class IndexService
 {
-    /** @var \Elasticsearch\Client */
-    private $client;
+    public const ELASTIC_UPDATED_AT_MAPPING = 'elastic_updated_at';
+
+    private Client $client;
 
     /**
      * IndexService constructor.
+     *
      * @param ClientBuilder $clientBuilder
      */
     public function __construct(ClientBuilder $clientBuilder)
@@ -18,120 +24,118 @@ class IndexService
         $this->client = $clientBuilder->createClient();
     }
 
-    /**
-     * @param string $indexName
-     * @return bool
-     */
     public function indexExist(string $indexName): bool
     {
         return $this->client->indices()->exists([
-            'index' => $indexName
-        ]);
+            'index' => $indexName,
+        ])->asBool();
     }
 
-    /**
-     * @param string $indexName
-     * @param array $mapping
-     * @param int $totalLimit
-     * @return string
-     */
-    public function createIndex(string $indexName, array $mapping, int $totalLimit): string
+    public function createIndex(string $indexName, array $mapping): string
     {
+        $mapping = array_merge($mapping, [
+            self::ELASTIC_UPDATED_AT_MAPPING => ['type' => 'integer']
+        ]);
+
         $this->client->indices()->create([
             'index' => $indexName,
             'body'  => [
                 'mappings' => [
-                    'properties' => $mapping
-                ]
-            ]
-        ]);
-        $this->client->indices()->putSettings([
-            'index' => $indexName,
-            'body'  => [
-                'index' => [
-                    'mapping' => [
-                        'total_fields' => [
-                            'limit' => $totalLimit
-                        ]
-                    ]
-                ]
-            ]
+                    'properties' => $mapping,
+                ],
+            ],
         ]);
 
         return true;
     }
 
-    /**
-     * @param string $indexName
-     * @param string $alias
-     * @return bool|mixed
-     */
+    public function deleteExcessData(string $indexName, int $timeStamp): int
+    {
+        $response = $this->client->deleteByQuery([
+            'index'     => $indexName,
+            'conflicts' => 'proceed',
+            'body'      => [
+                'query' => [
+                    'range' => [
+                        self::ELASTIC_UPDATED_AT_MAPPING => [
+                            'lte' => $timeStamp,
+                        ],
+                    ],
+                ],
+            ],
+        ])->asArray();
+
+        return $response['deleted'];
+    }
+
+    public function deleteIndex(string $indexName): bool
+    {
+        $result = $this->client->indices()->delete(['index' => $indexName]);
+        return $result->asBool();
+    }
+
     public function putAlias(string $indexName, string $alias)
     {
         if ($this->aliasExist($alias)) {
             $oldIndexName = $this->client->indices()->getAlias([
-                'name' => $alias
-            ]);
+                'name' => $alias,
+            ])->asArray();
 
             $this->client->indices()->deleteAlias([
                 'name'  => $alias,
-                'index' => key($oldIndexName)
+                'index' => key($oldIndexName),
             ]);
         }
 
         $result = $this->client->indices()->putAlias([
             'name'  => $alias,
-            'index' => $indexName
-        ]);
+            'index' => $indexName,
+        ])->asArray();
 
         return $result['acknowledged'] ?? false;
     }
 
-    /**
-     * @param string $source
-     * @param string $dest
-     * @return bool
-     */
     public function reindex(string $source, string $dest): bool
     {
         $result = $this->client->reindex([
             'body' => [
                 'source' => [
-                    'index' => $source
+                    'index' => $source,
                 ],
                 'dest'   => [
-                    'index' => $dest
-                ]
-            ]
+                    'index' => $dest,
+                ],
+            ],
         ]);
 
         return empty($result['failures']);
     }
 
-    /**
-     * @return bool
-     */
     public function aliasExist(string $alias): bool
     {
         return $this->client->indices()->existsAlias([
-            'name' => $alias
-        ]);
+            'name' => $alias,
+        ])->asBool();
     }
 
-    /**
-     * @param string $alias
-     * @return string
-     */
     public function getIndexNameByAlias(string $alias): string
     {
         if ($this->aliasExist($alias)) {
             $oldIndexName = $this->client->indices()->getAlias([
-                'name' => $alias
-            ]);
+                'name' => $alias,
+            ])->asArray();
 
             return key($oldIndexName);
         }
 
         return $alias;
     }
+
+    public function getMapping(string $indexName): array
+    {
+        $mapping = $this->client->indices()->getMapping(['index' => $indexName])->asArray();
+
+        return current(current(current($mapping)));
+    }
+
 }

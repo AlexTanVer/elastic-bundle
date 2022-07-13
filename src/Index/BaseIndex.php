@@ -2,51 +2,19 @@
 
 namespace AlexTanVer\ElasticBundle\Index;
 
-use AlexTanVer\ElasticBundle\ClientBuilder;
-use AlexTanVer\ElasticBundle\Interfaces\ElasticIndexInterface;
-use AlexTanVer\ElasticBundle\Service\IndexService;
-use Symfony\Component\Console\Output\OutputInterface;
 
-abstract class AbstractIndex implements ElasticIndexInterface
+use AlexTanVer\ElasticBundle\Service\IndexService;
+use RuntimeException;
+
+abstract class BaseIndex implements ElasticIndexInterface
 {
-    /**
-     * Имя индекса в elasticsearch
-     *
-     * Если не указать, то имя сформируется из имени класса
-     * Т.е класс SomeTestIndex будет преобразовано в some_test
-     * @var string
-     */
     public static $name;
 
-    /** @var OutputInterface */
-    protected $section;
+    private IndexService $indexService;
 
-    /** @var IndexService */
-    protected $indexService;
-
-    /**
-     * AbstractIndex constructor.
-     * @param IndexService $indexService
-     */
     public function __construct(IndexService $indexService)
     {
         $this->indexService = $indexService;
-    }
-
-    /**
-     * @return bool
-     */
-    public function hasCustomOutput(): bool
-    {
-        return false;
-    }
-
-    /**
-     * @param OutputInterface $output
-     */
-    public function setOutputSection(OutputInterface $output)
-    {
-        $this->section = $output;
     }
 
     /**
@@ -68,48 +36,49 @@ abstract class AbstractIndex implements ElasticIndexInterface
     public function create(): bool
     {
         $versionIndexName = $this->createNewVersionIndex();
+
         return $this->indexService->putAlias($versionIndexName, $this->getIndex());
     }
 
-    /**
-     * @return bool
-     * @throws \Exception
-     */
     public function recreate(): bool
     {
         $versionIndexName = $this->createNewVersionIndex();
         if ($this->indexService->reindex($this->getIndex(), $versionIndexName)) {
-            return $this->indexService->putAlias($versionIndexName, $this->getIndex());
+            $oldOriginalName = $this->getOriginalName();
+            $result          = $this->indexService->putAlias($versionIndexName, $this->getIndex());
+            $this->indexService->deleteIndex($oldOriginalName);
+
+            return $result;
         }
 
         return false;
     }
 
-    /**
-     * @return string
-     */
+    public function getRemoteMapping(): array
+    {
+        return $this->indexService->getMapping($this->getIndex());
+    }
+
     protected function createNewVersionIndex(): string
     {
         $versionIndexName = $this->generateNewVersionIndexName();
         $result           = $this->indexService->createIndex(
             $versionIndexName,
             $this->getMapping(),
-            $this->getTotalFieldsLimit()
         );
 
         if ($result) {
             return $versionIndexName;
         }
 
-        throw new \Exception("Index not created");
+        throw new RuntimeException("Index not created");
     }
 
-    /**
-     * @return string
-     */
     protected function generateNewVersionIndexName(): string
     {
         $now = new \DateTime();
+
         return "{$this->getIndex()}_{$now->format('Y_m_d_H_i_s')}";
     }
+
 }

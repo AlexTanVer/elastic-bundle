@@ -2,176 +2,86 @@
 
 namespace AlexTanVer\ElasticBundle\Command;
 
-use AlexTanVer\ElasticBundle\Interfaces\ElasticIndexInterface;
-use JMS\Serializer\Serializer;
-use JMS\Serializer\SerializerInterface;
-use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Process\Process;
-use AlexTanVer\ElasticBundle\ClientBuilder;
-use AlexTanVer\ElasticBundle\Command\Base\BaseIndexCommand;
 use AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory;
+use AlexTanVer\ElasticBundle\Index\ElasticIndexInterface;
+use AlexTanVer\ElasticBundle\IndexUpdater\SimpleIndexUpdater;
+use RuntimeException;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Question\ChoiceQuestion;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
-class IndexUpdateCommand extends BaseIndexCommand
+#[AsCommand(name: 'elastic:index:update', description: 'Обновление индекса')]
+class IndexUpdateCommand extends Command
 {
-    protected static $defaultName = 'elastic:index:update';
-
-    private $processes = [];
-    private $indexesWithError = [];
+    private ElasticIndexFactory $elasticIndexFactory;
+    private SimpleIndexUpdater $indexUpdater;
+    private SymfonyStyle $io;
 
     public function __construct(
         ElasticIndexFactory $elasticIndexFactory,
-        ClientBuilder $clientBuilder
-    )
-    {
+        SimpleIndexUpdater $indexUpdater
+    ) {
         parent::__construct();
-
         $this->elasticIndexFactory = $elasticIndexFactory;
-        $this->client              = $clientBuilder->createClient();
+        $this->indexUpdater        = $indexUpdater;
     }
 
     protected function configure()
     {
-        parent::configure();
-        $this
-            ->setDescription('Добавление объектов в индексы (при указании нескольких, обновление происходит асинхронно)')
-            ->addOption('simple_output', 's', InputOption::VALUE_NONE, 'Простой строковый вывод. Для лог-файла')
-            ->addOption('id', '', InputOption::VALUE_OPTIONAL, 'ID обновляемого объекта в базе (если указано, то обновится только один объект)');
+        $this->addArgument('index', InputArgument::OPTIONAL, 'Какой индекс нужно обновить');
+    }
+
+    protected function initialize(InputInterface $input, OutputInterface $output)
+    {
+        $this->io = new SymfonyStyle($input, $output);
     }
 
     protected function interact(InputInterface $input, OutputInterface $output)
     {
-        parent::interact($input, $output);
+        $index = $input->getArgument('index');
 
-        if ($input->getOption('all') && $input->getOption('id')) {
-            throw new \Exception("Нельзя указывать ID, если указан '--all'");
+        if (!$index) {
+            $availableIndexes = $this->getAvailableIndexes();
+
+            if (!empty($availableIndexes)) {
+                $q = new ChoiceQuestion("Выберите индекс", $availableIndexes);
+                $q->setMultiselect(false);
+                $q->setErrorMessage("Значение \"%s\" некорректно. Выберите значение из списка");
+
+                $index = $this->io->askQuestion($q);
+
+                if ($index) {
+                    $input->setArgument('index', $index);
+                } else {
+                    throw new RuntimeException('Необходимо указать индекс');
+                }
+            } else {
+                $this->io->success("Все индексы уже созданы");
+            }
         }
     }
 
-    /**
-     * @param InputInterface $input
-     * @param OutputInterface $output
-     * @return int|void|null
-     * @throws \Throwable
-     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $updatedIndexes = $input->getOption('all')
-            ? $this->getAvailableIndexes()
-            : $input->getArgument('index');
-
-        $isSimpleOut = $input->getOption('simple_output');
-
-        $startTime = microtime(true);
-
-        ProgressBar::setFormatDefinition('custom', "<info>%index%</info> - <fg=white;bg=blue>%progress%</>");
-        $progressBars = [];
-        foreach ($updatedIndexes as $updatedIndex) {
-            $updatedIndex = explode(' ', $updatedIndex);
-            $updatedIndex = $updatedIndex[0] ?? null;
-
-            $process                        = new Process([
-                'bin/console', 'elastic:update:single:index',
-                $updatedIndex, ($isSimpleOut ? '--simple_output' : '-v')
-            ]);
-            $this->processes[$updatedIndex] = $process;
-
-            $process->start();
-
-            if (!$isSimpleOut) {
-                $section     = $output->section();
-                $progressBar = new ProgressBar($section);
-                $progressBar->setFormat('custom');
-                $progressBar->setMessage($updatedIndex, 'index');
-                $progressBar->setMessage('Инициализация', 'progress');
-                $progressBars[$updatedIndex] = $progressBar;
-                $progressBar->start();
-            }
-        }
-
-        if ($isSimpleOut) {
-            while (count($this->processes)) {
-                /** @var Process $process */
-                foreach ($this->processes as $key => $process) {
-                    if ($process->isRunning()) {
-                        sleep(2);
-                    } else {
-                        $this->io->writeln($process->getOutput());
-                        unset($this->processes[$key]);
-                    }
-                }
-            }
+        $index = $this->elasticIndexFactory->getIndexByAlias($input->getArgument('index'));
+        if ($index instanceof ElasticIndexInterface) {
+            $this->indexUpdater->update($input->getArgument('index'), $output);
         } else {
-            while (count($this->processes)) {
-                /** @var Process $process */
-                foreach ($this->processes as $key => $process) {
-                    $processOut = $process->getIncrementalOutput();
-                    $processOut = explode("\n", $processOut);
-                    $processOut = array_diff($processOut, ['']);
-                    $processOut = end($processOut);
-
-
-                    if ($process->isRunning()) {
-                        if ($processOut) {
-                            $processOut = explode("\n", $processOut);
-                            $processOut = array_diff($processOut, ['']);
-                            $processOut = end($processOut);
-
-                            $progressBars[$key]->setMessage($processOut ?: '', 'progress');
-                            $progressBars[$key]->advance();
-                        }
-                    } else {
-                        $lastMessage = explode("\n", $process->getOutput());
-                        $lastMessage = array_diff($lastMessage, ['']);
-                        $lastMessage = end($lastMessage);
-
-                        if ($process->getExitCode() !== 0) {
-                            $this->indexesWithError[$updatedIndex] = $process->getErrorOutput();
-                        }
-
-                        $progressBars[$key]->setMessage($lastMessage ?: '', 'progress');
-                        $progressBars[$key]->advance();
-
-                        if ($process->isTerminated()) {
-                            unset($this->processes[$key]);
-                        }
-                    }
-                }
-            }
+            throw new RuntimeException("Index {$input->getArgument('index')} not found");
         }
 
-
-        $endTime  = microtime(true) - $startTime;
-        $taskTime = date_create_from_format('U.u', number_format($endTime, 6, '.', ''));
-
-        if (empty($this->indexesWithError)) {
-            $this->io->success("Индексы обновлены! Время выполнения - " . $taskTime->format('Hч. iм. sс.'));
-        } else {
-            $message = "Некоторые индексы обновлены с ошибками: " . implode(', ', array_keys($this->indexesWithError));
-            $message .= "\n\n";
-            foreach ($this->indexesWithError as $index => $error) {
-                $message .= "Ошибка индекса '{$index}':\n\n";
-                $message .= "{$error}\n";
-                $message .= "-------------------------------------------\n";
-            }
-            $message .= 'Время выполнения - ' . $taskTime->format('Hч. iм. sс.');
-
-            $this->io->warning($message);
-        }
-
-        return 1;
+        return 0;
     }
 
-    /**
-     * @param array $indexes
-     * @return ElasticIndexInterface[]|void
-     */
-    public function filterIndexes(array &$indexes)
+    protected function getAvailableIndexes(): array
     {
-        $indexes = array_filter($indexes, function (ElasticIndexInterface $index) {
-            return $index->isCreated();
-        });
+        $indexes          = $this->elasticIndexFactory->getIndexes();
+
+        return array_values(array_map(fn(ElasticIndexInterface $index) => $index->getIndex(), $indexes));
     }
+
 }

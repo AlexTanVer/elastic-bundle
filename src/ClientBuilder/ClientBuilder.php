@@ -2,23 +2,17 @@
 
 namespace AlexTanVer\ElasticBundle\ClientBuilder;
 
-use Elasticsearch\Client;
+use Elastic\Elasticsearch\Client;
 use Psr\Log\LoggerInterface;
 
 class ClientBuilder
 {
-    /** @var Client */
-    protected $client;
-    /** @var array */
-    protected $hosts;
-    /** @var LoggerInterface  */
-    protected $logger;
+    protected Client $client;
 
-    /**
-     * ClientBuilder constructor.
-     * @param array $hosts
-     * @param LoggerInterface $logger
-     */
+    protected array $hosts;
+
+    protected LoggerInterface $logger;
+
     public function __construct(array $hosts, LoggerInterface $logger)
     {
         $this->logger = $logger;
@@ -27,18 +21,9 @@ class ClientBuilder
 
     public function createClient(): Client
     {
-        return \Elasticsearch\ClientBuilder::create()
+        return \Elastic\Elasticsearch\ClientBuilder::create()
             ->setHosts($this->hosts)
             ->setLogger($this->logger)
             ->build();
     }
-
-    /**
-     * @return array
-     */
-    public function getHosts()
-    {
-        return $this->hosts;
-    }
-
 }

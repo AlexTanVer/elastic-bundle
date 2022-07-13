@@ -3,7 +3,7 @@
 namespace AlexTanVer\ElasticBundle\Factory;
 
 
-use AlexTanVer\ElasticBundle\Interfaces\ElasticIndexInterface;
+use AlexTanVer\ElasticBundle\Index\ElasticIndexInterface;
 
 class ElasticIndexFactory
 {

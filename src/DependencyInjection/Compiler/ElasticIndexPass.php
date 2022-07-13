@@ -1,19 +1,11 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: azhigalov
- * Date: 15.02.19
- * Time: 12:34
- */
 
 namespace AlexTanVer\ElasticBundle\DependencyInjection\Compiler;
 
-
-use AlexTanVer\ElasticBundle\Manager\ElasticManager;
+use AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
-use AlexTanVer\ElasticBundle\Factory\ElasticIndexFactory;
 
 class ElasticIndexPass implements CompilerPassInterface
 {
