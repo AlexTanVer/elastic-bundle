@@ -4,7 +4,7 @@ namespace AlexTanVer\ElasticBundle\QueryBuilder;
 
 class AggsBuilder
 {
-    public function buildAggs(...$aggs)
+    public function buildAggs(...$aggs): array
     {
         return array_reduce($aggs, function ($prev, $current) {
             $prev[key($current)] = current($current);
@@ -30,7 +30,7 @@ class AggsBuilder
         ];
     }
 
-    public function simpleTerms(string $aggsName, ?string $field = null)
+    public function simpleTerms(string $aggsName, ?string $field = null): array
     {
         return [
             $aggsName => [
@@ -42,7 +42,7 @@ class AggsBuilder
         ];
     }
 
-    public function min(string $aggsName, ?string $field)
+    public function min(string $aggsName, ?string $field): array
     {
         return [
             $aggsName => [
@@ -53,7 +53,7 @@ class AggsBuilder
         ];
     }
 
-    public function max(string $aggsName, ?string $field)
+    public function max(string $aggsName, ?string $field): array
     {
         return [
             $aggsName => [
