@@ -66,7 +66,7 @@ class QueryBuilder
         return !is_null($value) ? ['terms' => [$field => $value]] : null;
     }
 
-    public function range(string $field, null|int|float|string $lte, null|int|float|string $gte): ?array
+    public function range(string $field, null|int|float $lte = null, null|int|float $gte = null): ?array
     {
         $rangeQuery = [];
         if (!is_null($lte)) {

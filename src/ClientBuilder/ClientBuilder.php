@@ -26,4 +26,5 @@ class ClientBuilder
             ->setLogger($this->logger)
             ->build();
     }
+
 }

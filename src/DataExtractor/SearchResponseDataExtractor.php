@@ -13,36 +13,32 @@ class SearchResponseDataExtractor
         }, $searchResponse['hits']['hits'] ?? []);
     }
 
-    /**
-     * @param array $aggs
-     * @param string $aggregationName
-     *
-     * @return null|TermsAggregation[]
-     */
     public function getFilterTermsAggregation(array $aggs, string $aggregationName): ?array
     {
         if (!array_key_exists($aggregationName, $aggs)) {
             return null;
         }
 
-        return [$aggregationName => array_map(fn($aggregation) => new TermsAggregation($aggregation['key'], $aggregation['doc_count']),
-            $aggs[$aggregationName][$aggregationName]['buckets'])];
+        return [
+            $aggregationName => array_map(
+                fn($aggregation) => new TermsAggregation($aggregation['key'], $aggregation['doc_count']),
+                $aggs[$aggregationName][$aggregationName]['buckets']
+            ),
+        ];
     }
 
-    /**
-     * @param array $aggs
-     * @param string $aggregationName
-     *
-     * @return null|TermsAggregation[]
-     */
     public function getTermsAggregation(array $aggs, string $aggregationName): ?array
     {
         if (!array_key_exists($aggregationName, $aggs)) {
             return null;
         }
 
-        return [$aggregationName => array_map(fn($aggregation) => new TermsAggregation($aggregation['key'], $aggregation['doc_count']),
-            $aggs[$aggregationName]['buckets'])];
+        return [
+            $aggregationName => array_map(
+                fn($aggregation) => new TermsAggregation($aggregation['key'], $aggregation['doc_count']),
+                $aggs[$aggregationName]['buckets']
+            ),
+        ];
     }
 
 

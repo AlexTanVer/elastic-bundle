@@ -4,24 +4,24 @@ namespace AlexTanVer\ElasticBundle\Service;
 
 
 use AlexTanVer\ElasticBundle\ClientBuilder\ClientBuilder;
-use DateTimeImmutable;
+use AlexTanVer\ElasticBundle\IndexDataStore\IndexDataStoreInterface;
 use Elastic\Elasticsearch\Client;
-use Symfony\Component\Console\Output\OutputInterface;
+use Elastic\Elasticsearch\Response\Elasticsearch;
+use Http\Promise\Promise;
 
 class IndexService
 {
     public const ELASTIC_UPDATED_AT_MAPPING = 'elastic_updated_at';
 
     private Client $client;
+    private IndexDataStoreInterface $indexDataStore;
 
-    /**
-     * IndexService constructor.
-     *
-     * @param ClientBuilder $clientBuilder
-     */
-    public function __construct(ClientBuilder $clientBuilder)
-    {
-        $this->client = $clientBuilder->createClient();
+    public function __construct(
+        ClientBuilder $clientBuilder,
+        IndexDataStoreInterface $indexDataStore
+    ) {
+        $this->client         = $clientBuilder->createClient();
+        $this->indexDataStore = $indexDataStore;
     }
 
     public function indexExist(string $indexName): bool
@@ -34,7 +34,7 @@ class IndexService
     public function createIndex(string $indexName, array $mapping): string
     {
         $mapping = array_merge($mapping, [
-            self::ELASTIC_UPDATED_AT_MAPPING => ['type' => 'integer']
+            self::ELASTIC_UPDATED_AT_MAPPING => ['type' => 'integer'],
         ]);
 
         $this->client->indices()->create([
@@ -71,6 +71,7 @@ class IndexService
     public function deleteIndex(string $indexName): bool
     {
         $result = $this->client->indices()->delete(['index' => $indexName]);
+
         return $result->asBool();
     }
 
@@ -136,6 +137,62 @@ class IndexService
         $mapping = $this->client->indices()->getMapping(['index' => $indexName])->asArray();
 
         return current(current(current($mapping)));
+    }
+
+    public function compareIndexMappings($mapping1, $mapping2): array
+    {
+        $diff = [];
+
+        foreach ($mapping1 as $mapping1Key => $mapping1Value) {
+            if (array_key_exists($mapping1Key, $mapping2)) {
+                if (is_array($mapping1Value)) {
+                    if ($mapping1Value['type'] === 'object' || $mapping1Value['type'] === 'nested') {
+                        $aRecursiveDiff = $this->compareIndexMappings(
+                            $mapping1Value['properties'],
+                            $mapping2[$mapping1Key]['properties']
+                        );
+                    } else {
+                        $aRecursiveDiff = $this->compareIndexMappings($mapping1Value, $mapping2[$mapping1Key]);
+                    }
+
+                    if (count($aRecursiveDiff)) {
+                        $diff[$mapping1Key] = $aRecursiveDiff;
+                    }
+                } else {
+                    if ($mapping1Value != $mapping2[$mapping1Key]) {
+                        $diff[$mapping1Key] = $mapping1Value;
+                    }
+                }
+            } else {
+                $diff[$mapping1Key] = $mapping1Value;
+            }
+        }
+
+        return $diff;
+    }
+
+    public function persistData(
+        string $indexName,
+        array &$objects
+    ): void {
+        $this->indexDataStore->persist(
+            $indexName,
+            $objects
+        );
+    }
+
+    public function doc(string $indexName, string $id): Elasticsearch|Promise
+    {
+        return $this->client->get([
+            'index' => $indexName,
+            'type'  => '_doc',
+            'id'    => $id,
+        ]);
+    }
+
+    public function search(array $search): Elasticsearch|Promise
+    {
+        return $this->client->search($search);
     }
 
 }

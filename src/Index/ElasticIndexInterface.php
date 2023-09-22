@@ -3,12 +3,9 @@
 namespace AlexTanVer\ElasticBundle\Index;
 
 
-
 interface ElasticIndexInterface
 {
-    public function getIndex(): string;
-
-    public function getObjects(): iterable;
+    public function getName(): string;
 
     public function getMapping(): array;
 
@@ -22,5 +19,11 @@ interface ElasticIndexInterface
 
     public function recreate(): bool;
 
-    public function needToRemoveExcessData(): bool;
+    public function actualMapping(): void;
+
+    public function doc(string $id): array;
+
+    public function search(array $search): array;
+
+    public function persist(array &$objects): void;
 }

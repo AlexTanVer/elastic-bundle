@@ -10,34 +10,26 @@ class ElasticIndexFactory
     /**
      * @var ElasticIndexInterface[]
      */
-    private $indexes;
+    private array $indexes;
 
-    public function addIndex(string $alias, ElasticIndexInterface $index)
+    public function addIndex(ElasticIndexInterface $index): void
     {
-        $this->indexes[$alias] = $index;
+        $this->indexes[$index->getName()] = $index;
     }
 
     /**
      * @return ElasticIndexInterface[]
      */
-    public function getIndexes()
+    public function getIndexes(): array
     {
         return $this->indexes;
     }
 
-    /**
-     * @param string $alias
-     * @return ElasticIndexInterface|null
-     */
-    public function getIndexByAlias(string $alias): ?ElasticIndexInterface
+    public function getIndexByName(string $name): ?ElasticIndexInterface
     {
-        return $this->indexes[$alias] ?? null;
+        return $this->indexes[$name] ?? null;
     }
 
-    /**
-     * @param string $indexClassName
-     * @return ElasticIndexInterface|null
-     */
     public function getIndexByClassName(string $indexClassName): ?ElasticIndexInterface
     {
         $indexes = $this->getIndexes();
@@ -52,4 +44,5 @@ class ElasticIndexFactory
 
         return null;
     }
+
 }

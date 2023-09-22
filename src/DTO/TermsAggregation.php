@@ -14,17 +14,11 @@ class TermsAggregation
         $this->count = $count;
     }
 
-    /**
-     * @return mixed
-     */
     public function getKey(): mixed
     {
         return $this->key;
     }
 
-    /**
-     * @return int
-     */
     public function getCount(): int
     {
         return $this->count;
